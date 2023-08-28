@@ -28,10 +28,10 @@ else
                     <button type="button" class="btn-close" @onclick="async () => ShowAddContainerModal = false"></button>
                 </div>
                 @*Displays error message if the total containers weight added to a vessel exceed the maximum capacity of the vessel*@
-                @if (!string.IsNullOrEmpty(message))
+                @if (!string.IsNullOrEmpty(addMessage))
                 {
                     <div class="alert alert-info">
-                        @message
+                        @addMessage
                     </div>
                 }
                 <div class="modal-body">
@@ -79,6 +79,13 @@ else
                 <h5 class="modal-title">Edit Container</h5>
                 <button type="button" class="btn-close" @onclick="(() => ShowEditContainerModal = false)"></button>
             </div>
+            @*Displays error message if the total containers weight added to a vessel exceed the maximum capacity of the vessel*@
+            @if (!string.IsNullOrEmpty(editMessage))
+            {
+                <div class="alert alert-info">
+                    @editMessage
+                </div>
+            }
             <div class="modal-body">
                 <EditForm Model="EditContainer" OnValidSubmit="@UpdateContainer">
                     <DataAnnotationsValidator />
@@ -151,7 +158,8 @@ else
 }
 
 @code {
-    private string message = string.Empty; 
+    private string addMessage = string.Empty; 
+    private string editMessage = string.Empty;
 
     bool ShowAddContainerModal { get; set; } = false;
     bool ShowEditContainerModal { get; set; } = false;
@@ -179,7 +187,7 @@ else
     {
         var (success, resultMessage) = await ContainerService.AddContainerAsync(NewContainer);
         // Update the message based on the result
-        message = resultMessage;  
+        addMessage = resultMessage;  
 
         if (success)
         {
@@ -200,10 +208,15 @@ else
     //Update and existing contaier in the database
     private async Task UpdateContainer()
     {
-        await ContainerService.UpdateContainerAsync(EditContainer);
-        EditContainer = new Container();
-        await RefreshData();
-        ShowEditContainerModal = false;
+        var (success, resultMessage) = await ContainerService.UpdateContainerAsync(EditContainer);
+        editMessage  = resultMessage;
+
+        if (success)
+        {
+            EditContainer = new Container();
+            await RefreshData();
+            ShowEditContainerModal = false;
+        }
     }
 
     //Delete a container based on its ID

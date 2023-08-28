@@ -46,10 +46,33 @@ namespace Fleet_Management_Service.Services
         }
 
         //updates container information
-        public async Task UpdateContainerAsync(Container container)
+        public async Task<(bool, string)> UpdateContainerAsync(Container container)
         {
-            _context.Containers.Update(container);
+            var existingContainer = await _context.Containers.FindAsync(container.Id);
+            if (existingContainer == null)
+            {
+                return (false, "Container not found.");
+            }
+
+            var vessel = await GetVesselWithContainers(container.VesselId);
+            if (vessel == null)
+            {
+                return (false, "Vessel not found.");
+            }
+
+            int currentWeight = vessel.Containers.Where(c => c.Id != container.Id).Sum(c => c.Weight);
+
+            if (currentWeight + container.Weight > vessel.MaximumCapacity)
+            {
+                await _context.Entry(existingContainer).ReloadAsync();
+                return (false, "Cannot update the container since it exceeds the vessel's Maximum Capacity.");
+            }
+
+
+            _context.Entry(existingContainer).CurrentValues.SetValues(container);
             await _context.SaveChangesAsync();
+
+            return (true, "Container updated successfully.");
         }
         //deletes container ifnroamtion
         public async Task DeleteContainerAsync(int id)
@@ -60,6 +83,13 @@ namespace Fleet_Management_Service.Services
                 _context.Containers.Remove(container);
                 await _context.SaveChangesAsync();
             }
+        }
+
+        private async Task<Vessel> GetVesselWithContainers(int vesselId)
+        {
+            return await _context.Vessels
+                        .Include(v => v.Containers)
+                        .FirstOrDefaultAsync(v => v.Id == vesselId);
         }
     }
 
