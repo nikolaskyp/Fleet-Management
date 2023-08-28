@@ -1,0 +1,215 @@
+﻿@page "/containers"
+@inject ContainerService ContainerService
+@inject VesselService VesselService
+
+@*Loading spinner if while fetching data*@
+@if (ContainerList == null || VesselList == null)
+{
+    <div class="spinner-border text-primary" role="status">
+        <span class="sr-only"></span>
+    </div>
+}
+else
+{
+    @*Add A new containers*@
+    <div class="container-fluid py-4" style="background-color: #f4f4f4;">
+
+        <div class="mb-4">
+            <button type="button" class="btn btn-success" @onclick="async () => ShowAddContainerModal = true">
+                <i class="bi bi-plus-circle"></i> Add New Container
+            </button>
+        </div>
+
+        <div class="modal fade @((ShowAddContainerModal) ? "show d-block" : "")" id="addContainerModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">Add New Container</h5>
+                    <button type="button" class="btn-close" @onclick="async () => ShowAddContainerModal = false"></button>
+                </div>
+                @*Displays error message if the total containers weight added to a vessel exceed the maximum capacity of the vessel*@
+                @if (!string.IsNullOrEmpty(message))
+                {
+                    <div class="alert alert-info">
+                        @message
+                    </div>
+                }
+                <div class="modal-body">
+                    <EditForm Model="NewContainer" OnValidSubmit="@AddNewContainer">
+                        <DataAnnotationsValidator />
+                        <div class="form-group">
+                            <label for="containerId">Container ID:</label>
+                            <InputText id="containerId" class="form-control" @bind-Value="NewContainer.ContainerId" />
+                        </div>
+                        <div class="form-group">
+                            <label for="weight">Weight:</label>
+                            <InputNumber id="weight" class="form-control" @bind-Value="NewContainer.Weight" />
+                        </div>
+                        <div class="form-group">
+                            <label for="vesselId">Assign to Vessel:</label>
+                             @if (VesselList == null)
+                            {
+                                <p>Loading...</p>
+                            }
+                            else
+                            {
+                                <select id="vesselId" class="form-select" @bind="NewContainer.VesselId">
+                                    @foreach (var vessel in VesselList)
+                                    {
+                                        <option value="@vessel.Id">@vessel.Name</option>
+                                    }
+                                </select><br>
+                            }
+                        </div>
+                        <ValidationSummary />
+                        <div class="text-center p-3 mb-3">
+                            <button class="btn btn-success" type="submit">Add New Container</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @*Edit Container*@
+    <div class="modal fade @((ShowEditContainerModal) ? "show d-block" : "")" id="editContainerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Edit Container</h5>
+                <button type="button" class="btn-close" @onclick="(() => ShowEditContainerModal = false)"></button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="EditContainer" OnValidSubmit="@UpdateContainer">
+                    <DataAnnotationsValidator />
+                    <div class="form-group">
+                        <label for="editContainerId">Container ID:</label>
+                        <InputText id="editContainerId" class="form-control" @bind-Value="EditContainer.ContainerId" />
+                    </div>
+                    <div class="form-group">
+                        <label for="editWeight">Weight:</label>
+                        <InputNumber id="editWeight" class="form-control" @bind-Value="EditContainer.Weight" />
+                    </div>
+                    <div class="form-group">
+                        <label for="editVesselId">Assign to Vessel:</label>
+                        @if (VesselList == null)
+                        {
+                            <p>Loading...</p>
+                        }
+                        else
+                        {
+                            <select id="editVesselId" class="form-select" @bind="EditContainer.VesselId">
+                                @foreach (var vessel in VesselList)
+                                {
+                                    <option value="@vessel.Id">@vessel.Name</option>
+                                }
+                            </select><br>
+                        }
+                    </div>
+                    <ValidationSummary />
+                    <div class="text-center p-3 mb-3">
+                        <button class="btn btn-primary" type="submit">Update Container</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+        @*Table to display the data of the container database*@
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-hover">
+                    <thead class="thead-green">
+                        <tr>
+                            <th>Container ID</th>
+                            <th>Weight</th>
+                            <th>Vessel Name</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var container in ContainerList)
+                        {
+                            <tr>
+                                <td>@container.ContainerId</td>
+                                <td>@container.Weight</td>
+                                <td>@container.Vessel?.Name</td>
+                                <td>
+                                <button @onclick="async () => ShowEditModal(container)" class="btn btn-primary bi bi-pencil"></button>
+                                <button @onclick="(() => DeleteContainer(container.Id))" class="btn btn-danger bi bi-trash"></button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string message = string.Empty; 
+
+    bool ShowAddContainerModal { get; set; } = false;
+    bool ShowEditContainerModal { get; set; } = false;
+
+    private List<Container> ContainerList;
+    private List<Vessel> VesselList;
+    private Container NewContainer = new Container();
+    private Container EditContainer = new Container();
+
+    // Fetch data on initial start
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshData();
+    }
+
+    // Refreshes container and vessel data
+    private async Task RefreshData()
+    {
+        ContainerList = await ContainerService.GetContainersAsync();
+        VesselList = await VesselService.GetVesselsAsync();
+    }
+
+    // Function to add new container
+    private async Task AddNewContainer()
+    {
+        var (success, resultMessage) = await ContainerService.AddContainerAsync(NewContainer);
+        // Update the message based on the result
+        message = resultMessage;  
+
+        if (success)
+        {
+            // Reset the form only if adding was successful
+            NewContainer = new Container();  
+            await RefreshData();
+            ShowAddContainerModal = false;
+        }
+    }
+
+    // Show edit modal 
+    private void ShowEditModal(Container container)
+    {
+        EditContainer = container;
+        ShowEditContainerModal = true;
+    }
+
+    //Update and existing contaier in the database
+    private async Task UpdateContainer()
+    {
+        await ContainerService.UpdateContainerAsync(EditContainer);
+        EditContainer = new Container();
+        await RefreshData();
+        ShowEditContainerModal = false;
+    }
+
+    //Delete a container based on its ID
+    private async Task DeleteContainer(int id)
+    {
+        await ContainerService.DeleteContainerAsync(id);
+        await RefreshData();
+    }
+}

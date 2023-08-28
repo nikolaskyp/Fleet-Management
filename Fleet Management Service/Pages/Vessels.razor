@@ -1,0 +1,183 @@
+﻿@page "/vessels"
+@inject VesselService service
+
+@*Loading spinner if while fetching data*@
+@if (VesselList == null)
+{
+    <div class="spinner-border text-primary" role="status">
+        <span class="sr-only"></span>
+    </div>
+}
+else
+{
+    @*Add New Vessel*@
+    <div class="container-fluid py-4" style="background-color: #f4f4f4;">
+        <div class="mb-4">
+            <button type="button" class="btn btn-success" @onclick="(() => ShowAddVesselModal = true)">
+                <i class="bi bi-plus-circle"></i> Add New Vessel
+            </button>
+        </div>
+        <div class="modal fade @((ShowAddVesselModal) ? "show d-block" : "")" id="addVesselModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title">Add New Vessel</h5>
+                        <button type="button" class="btn-close" @onclick="(() => ShowAddVesselModal = false)"></button>
+                    </div>
+                    <div class="modal-body">
+                        <EditForm Model="NewVessel" OnValidSubmit="AddNewVessel">
+                            <DataAnnotationsValidator />
+                            <div class="form-group">
+                                <label for="vesselName">Vessel Name</label>
+                                <InputText id="vesselName" class="form-control" @bind-Value="NewVessel.Name" />
+                            </div>
+                            <div class="form-group">
+                                <label for="imonumber">IMO Number</label>
+                                <InputText id="imonumber" class="form-control" @bind-Value="NewVessel.IMONumber" />
+                            </div>
+                            <div class="form-group">
+                                <label for="capacity">Maximum Capacity</label>
+                                <InputNumber id="capacity" class="form-control" @bind-Value="NewVessel.MaximumCapacity" />
+                            </div>
+                            <ValidationSummary />
+                            <div class="text-center p-3 mb-3">
+                                <button class="btn btn-success" type="submit">Add New Vessel</button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @*Edit vessel*@
+        <div class="modal fade @((ShowEditVesselModalFlag) ? "show d-block" : "")" id="editVesselModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">Edit Vessel</h5>
+                        <button type="button" class="btn-close" @onclick="(() => ShowEditVesselModalFlag = false)"></button>
+                    </div>
+                    <div class="modal-body">
+                        <EditForm Model="EditingVessel" OnValidSubmit="UpdateVesselData">
+                            <DataAnnotationsValidator />
+                            <div class="form-group">
+                                <label for="editVesselName">Vessel Name</label>
+                                <InputText id="editVesselName" class="form-control" @bind-Value="EditingVessel.Name" />
+                            </div>
+                            <div class="form-group">
+                                <label for="editIMONumber">IMO Number</label>
+                                <InputText id="editIMONumber" class="form-control" @bind-Value="EditingVessel.IMONumber" />
+                            </div>
+                            <div class="form-group">
+                                <label for="editMaximumCapacity">Maximum Capacity</label>
+                                <InputNumber id="editMaximumCapacity" class="form-control" @bind-Value="EditingVessel.MaximumCapacity" />
+                            </div>
+                            <ValidationSummary />
+                            <div class="text-center p-3 mb-3">
+                                <button class="btn btn-primary" type="submit">Edit Vessel</button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @*Table to Display Vessels*@
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-hover">
+                    <thead class="thead-green">
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>IMO Number</th>
+                            <th>Maximum Capacity</th>
+                            <th>Containers</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var vessel in VesselList)
+                        {
+                            <tr>
+                                <td>@vessel.Id</td>
+                                <td>@vessel.Name</td>
+                                <td>@vessel.IMONumber</td>
+                                <td>@vessel.MaximumCapacity</td>
+                                <td>
+                                @if (vessel.Containers != null && vessel.Containers.Any())
+                                {
+                                    @string.Join(", ", vessel.Containers.Select(c => c.ContainerId))
+
+                                }
+                                else
+                                {
+                                    <text>No Containers Assigned</text>
+                                }
+                                </td>
+                                <td>
+                                    <button class="btn btn-primary" @onclick="() => ShowEditVesselModal(vessel)"><i class="bi bi-pencil"></i></button>
+                                    <button class="btn btn-danger" @onclick="(() => DeleteVessel(vessel.Id))"><i class="bi bi-trash"></i></button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+}
+
+
+
+
+
+    @code {
+
+    bool ShowAddVesselModal { get; set; } = false;
+    bool ShowEditVesselModalFlag { get; set; } = false;
+
+    private List<Vessel> VesselList;
+    private Vessel NewVessel = new Vessel();
+    private Vessel EditingVessel = new Vessel(); 
+
+    //Initialize vessel list
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshVessels();
+    }
+    //Update Vessel List
+    private async Task RefreshVessels()
+    {
+        VesselList = await service.GetVesselsAsync();
+    }
+    //Register a new Vessel
+    private async Task AddNewVessel()
+    {
+        await service.CreateVesselAsync(NewVessel);
+        NewVessel = new Vessel();
+        await RefreshVessels();
+        ShowAddVesselModal = false;
+    }
+    //Display the Edit Vessel Modal
+    private void ShowEditVesselModal(Vessel vessel) 
+    {
+        EditingVessel = vessel;
+        ShowEditVesselModalFlag = true;
+    }
+    //Update Vessel when edited
+    private async Task UpdateVesselData()
+    {
+        await service.UpdateVesselAsync(EditingVessel); 
+        ShowEditVesselModalFlag = false; 
+        await RefreshVessels();
+    }
+    //Delete Vessel based on ID
+    private async Task DeleteVessel(int id)
+    {
+        await service.DeleteVesselAsync(id);
+        await RefreshVessels();
+    }
+}
+

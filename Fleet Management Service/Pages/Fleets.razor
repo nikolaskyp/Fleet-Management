@@ -1,0 +1,247 @@
+﻿@page "/"
+@inject FleetService fleetService
+@inject VesselService vesselService
+
+<PageTitle>Fleet Management</PageTitle>
+
+@*Loading spinner if while fetching data*@
+@if (FleetList == null || VesselList == null)
+{
+    <div class="spinner-border text-primary" role="status">
+        <span class="sr-only"></span>
+    </div>
+}
+else
+{
+    @*Add New Fleet*@
+    <div class="container-fluid py-4" style="background-color: #f4f4f4;">
+        <div class="mb-4">
+            <button type="button" class="btn btn-success" @onclick="(() => ShowAddFleetModal = true)">
+                <i class="bi bi-plus-circle"></i> Add New Fleet
+            </button>
+        </div>
+        <div class="modal fade @((ShowAddFleetModal) ? "show d-block" : "")" id="addFleetModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title">Add New Fleet</h5>
+                        <button type="button" class="btn-close" @onclick="(() => ShowAddFleetModal = false)"></button>
+                    </div>
+                    <div class="modal-body">
+                        <EditForm Model="NewFleet" OnValidSubmit="AddNewFleet">
+                            <DataAnnotationsValidator />
+                            <div class="form-group">
+                                <label for="fleetName">Fleet Name</label>
+                                <InputText id="fleetName" class="form-control" @bind-Value="NewFleet.Name" />
+                            </div>
+                            <ValidationSummary />
+                            <div class="text-center p-3 mb-3">
+                                <button class="btn btn-success" type="submit">Add New Fleet</button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @*Edit Fleet*@
+        <div class="modal fade @((ShowEditFleetModal) ? "show d-block" : "")" id="editFleetModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">Edit Fleet</h5>
+                        <button type="button" class="btn-close" @onclick="(() => ShowEditFleetModal = false)"></button>
+                    </div>
+                    <div class="modal-body">
+                        <EditForm Model="EditingFleet" OnValidSubmit="EditFleet">
+                            <DataAnnotationsValidator />
+                            <div class="form-group">
+                                <label for="editFleetName">Fleet Name</label>
+                                <InputText id="editFleetName" class="form-control" @bind-Value="EditingFleet.Name" />
+                            </div>
+                            <ValidationSummary />
+                            <div class="text-center p-3 mb-3">
+                                <button class="btn btn-primary" type="submit">Edit Fleet</button>
+                            </div>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+        @*Table to Display Fleet data*@
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-hover">
+                    <thead class="thead-green">
+                        <tr>
+  
+                            <th>Fleet Name</th>
+                            <th>Vessels</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fleet in FleetList)
+                        {
+                            <tr>
+
+                                <td>@fleet.Name</td>
+                                <td>
+                                @if (fleet.Vessels != null && fleet.Vessels.Any())
+                                {
+                                    <ol>
+                                        @foreach (var vessel in fleet.Vessels)
+                                        {
+                                            <li>@vessel.Name</li>
+                                        }
+                                    </ol>
+                                }
+                                else
+                                {
+                                    <text>No Vessels</text>
+                                }
+                                </td>
+                                <td>
+                                    <button class="btn btn-primary" @onclick="(() => OpenEditModal(fleet))"><i class="bi bi-pencil"></i></button>
+                                    <button class="btn btn-danger" @onclick="(() => DeleteFleet(fleet.Id))"><i class="bi bi-trash"></i></button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+       @*Assign Vessels to Fleet*@
+        <div class="row mt-4">
+            <div class="col-12">
+                <form @onsubmit="AssignVesselToFleet">
+                    <div class="input-group mb-3">
+                        <label for="selectedFleet" class="input-group-text">Assign Vessel:</label>
+                        <select id="selectedVessel" class="form-select" @bind="SelectedVesselId">
+                            @foreach (var vessel in VesselList)
+                            {
+                                <option value="@vessel.Id">@vessel.Name</option>
+                            }
+                        </select>
+                        <label for="selectedVessel" class="input-group-text">to Fleet:</label>
+                        <select id="selectedFleet" class="form-select" @bind="SelectedFleetId">
+                            @foreach (var fleet in FleetList)
+                            {
+                                <option value="@fleet.Id">@fleet.Name</option>
+                            }
+                        </select>
+                        <button class="btn btn-primary" type="submit">Assign</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+}
+
+
+@code {
+    bool ShowEditFleetModal { get; set; } = false;
+    Fleet EditingFleet = new Fleet();
+
+    bool ShowAddFleetModal { get; set; } = false;
+    bool ShowUpdateModal { get; set; } = false;
+    private List<Fleet> FleetList;
+    private List<Vessel> VesselList;
+    private Fleet NewFleet = new Fleet();
+    private int SelectedFleetId;
+    private int SelectedVesselId;
+
+    //Open Modal when editing a Fleet 
+    private void OpenEditModal(Fleet fleet)
+    {
+        EditingFleet = fleet;
+        ShowEditFleetModal = true;
+    }
+
+    //Edit Fleet
+    private async Task EditFleet()
+    {
+        await fleetService.UpdateFleetAsync(EditingFleet);
+        ShowEditFleetModal = false; 
+        await RefreshFleets(); 
+    }
+
+    //Initialize Fleet list
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshFleets();
+        await RefreshVessels();
+    }
+
+    //refresh the list of all Fleets
+    private async Task RefreshFleets()
+    {
+        FleetList = await fleetService.GetFleetsAsync();
+    }
+
+    private async Task RefreshVessels()
+    {
+        VesselList = await vesselService.GetVesselsAsync();
+    }
+    // Add a new fleet and update the fleet list
+    private async Task AddNewFleet()
+    {
+        await fleetService.CreateFleetAsync(NewFleet);
+        NewFleet = new Fleet(); // Reset the form
+        ShowAddFleetModal = false; // Close the modal
+        await RefreshFleets(); // Refresh the fleet list
+    }
+    // Delete a fleet by ID
+    private async Task DeleteFleet(int id)
+    {
+        await fleetService.DeleteFleetAsync(id);
+        await RefreshFleets();
+    }
+    // Assign a vessel to a fleet
+    private async Task AssignVesselToFleet()
+    {
+    // Use FirstOrDefault instead of First to prevent the exception and investigate further
+    var fleet = FleetList.FirstOrDefault(f => f.Id == SelectedFleetId);
+    var vessel = VesselList.FirstOrDefault(v => v.Id == SelectedVesselId);
+
+    //add Console logs for the exception
+    if (fleet == null)
+    {
+       
+        Console.WriteLine("The selected fleet does not exist.");
+        return;
+    }
+
+    if (vessel == null)
+    {
+       
+        Console.WriteLine("The selected vessel does not exist.");
+        return;
+    }
+
+    
+    vessel.FleetId = fleet.Id;
+
+    
+    if (fleet.Vessels == null)
+    {
+        fleet.Vessels = new List<Vessel>();
+    }
+
+    fleet.Vessels.Add(vessel);
+
+    // Update the fleet and vessel 
+    await fleetService.UpdateFleetAsync(fleet);
+    await vesselService.UpdateVesselAsync(vessel);
+
+    // Refresh the fleets and vessels
+    await RefreshFleets();
+    await RefreshVessels();
+    }
+
+}
